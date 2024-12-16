@@ -19,11 +19,7 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/",
     icon: <ArrowDownUp className="h-4 w-4" />,
   },
-  {
-    label: "Debug Contracts",
-    href: "/debug",
-    icon: <PlusCircle className="h-4 w-4" />,
-  },
+  
   {
     label: "Token A",
     href: "/tokenA",
@@ -34,6 +30,12 @@ export const menuLinks: HeaderMenuLink[] = [
     label: "Token B",
     href: "/tokenB",
     icon: <MinusCircle className="h-4 w-4" />,
+  },
+
+  {
+    label: "Debug Contracts",
+    href: "/debug",
+    icon: <PlusCircle className="h-4 w-4" />,
   },
 ];
 
@@ -96,7 +98,7 @@ export const Header = () => {
         </nav>
 
         {/* Connect Wallet */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center text-gray-600 space-x-4">
           <RainbowKitCustomConnectButton />
         </div>
 
@@ -104,7 +106,7 @@ export const Header = () => {
         <div className="md:hidden">
           <button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className="text-gray-600 hover:text-gray-800"
+            className="text-gray-600 hover:text-gray-1000"
           >
             {isDrawerOpen ? 'Close' : 'Menu'}
           </button>
@@ -113,10 +115,13 @@ export const Header = () => {
 
       {/* Mobile Drawer */}
       {isDrawerOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg">
-          <ul className="space-y-2 p-4">
-            <HeaderMenuLinks />
-          </ul>
+        <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md shadow-lg">
+          <div className="container mx-auto px-4 py-4">
+            <RainbowKitCustomConnectButton />
+            <ul className="space-y-2 mt-4">
+              <HeaderMenuLinks />
+            </ul>
+          </div>
         </div>
       )}
     </div>
