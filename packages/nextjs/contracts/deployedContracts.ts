@@ -5,9 +5,9 @@
 import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
 const deployedContracts = {
-  31337: {
+  534351: {
     SimpleDEX: {
-      address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      address: "0x06307FBa085afCeA5439f36Ad1AAbB72d477d436",
       abi: [
         {
           inputs: [
@@ -277,7 +277,7 @@ const deployedContracts = {
       },
     },
     TokenA: {
-      address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      address: "0xAdCF5Af4c4449041542C0C164F3C22Eba7Ba32E0",
       abi: [
         {
           inputs: [],
@@ -701,7 +701,7 @@ const deployedContracts = {
       },
     },
     TokenB: {
-      address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      address: "0xA28C45702e4d98025bC3881f6AEe616F76D23035",
       abi: [
         {
           inputs: [],
