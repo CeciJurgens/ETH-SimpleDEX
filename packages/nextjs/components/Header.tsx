@@ -98,7 +98,7 @@ export const Header = () => {
         </nav>
 
         {/* Connect Wallet */}
-        <div className="flex items-center text-gray-600 space-x-4">
+        <div className="flex items-center bg-white text-gray-600 space-x-4">
           <RainbowKitCustomConnectButton />
         </div>
 
