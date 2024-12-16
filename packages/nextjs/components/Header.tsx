@@ -15,18 +15,24 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "Swap",
+    label: "SimpleDEX",
     href: "/",
     icon: <ArrowDownUp className="h-4 w-4" />,
   },
   {
-    label: "Add Liquidity",
-    href: "/add-liquidity",
+    label: "Debug Contracts",
+    href: "/debug",
     icon: <PlusCircle className="h-4 w-4" />,
   },
   {
-    label: "Remove Liquidity",
-    href: "/remove-liquidity",
+    label: "Token A",
+    href: "/tokenA",
+    icon: <MinusCircle className="h-4 w-4" />,
+  },
+
+  {
+    label: "Token B",
+    href: "/tokenB",
     icon: <MinusCircle className="h-4 w-4" />,
   },
 ];
