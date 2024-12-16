@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Curve from "../components/Curve";
 import { NextPage } from "next";
 import { formatUnits, parseEther } from "viem";
 import { useAccount } from "wagmi";
+import { ArrowDownUp, Zap, PlusCircle, MinusCircle } from "lucide-react";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth/useDeployedContractInfo";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth/useScaffoldReadContract";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth/useScaffoldWriteContract";
 
 const Home: NextPage = () => {
   const [amountToSwap, setAmountToSwap] = useState<string>("0");
+  const [liquidityAmount, setLiquidityAmount] = useState<string>("0");
   const [isSwappingAtoB, setIsSwappingAtoB] = useState(true);
+  const [selectedAction, setSelectedAction] = useState<'swap' | 'addLiquidity' | 'removeLiquidity'>('swap');
   const [estimatedOutput, setEstimatedOutput] = useState<string | undefined>();
   const [isApproved, setIsApproved] = useState(false);
   const account = useAccount();
@@ -24,7 +26,8 @@ const Home: NextPage = () => {
   const tokenBAddress = tokenBData?.address;
   const simpleDEXAddress = simpleDEXData?.address;
 
-  // Consultas para obtener los balances de los tokens
+
+  // Consultas para obtener los balances de los tokens y liquidez
   const { data: reserveA } = useScaffoldReadContract({
     contractName: "TokenA",
     functionName: "balanceOf",
@@ -49,17 +52,18 @@ const Home: NextPage = () => {
     args: [tokenBAddress],
   });
 
-  // Funciones de aprobación
+  // Funciones de contrato
   const { writeContractAsync: approveTokenA } = useScaffoldWriteContract("TokenA");
   const { writeContractAsync: approveTokenB } = useScaffoldWriteContract("TokenB");
-
   const { writeContractAsync: swapAforB } = useScaffoldWriteContract("SimpleDEX");
   const { writeContractAsync: swapBforA } = useScaffoldWriteContract("SimpleDEX");
+  const { writeContractAsync: addLiquidity } = useScaffoldWriteContract("SimpleDEX");
+  const { writeContractAsync: removeLiquidity } = useScaffoldWriteContract("SimpleDEX");
 
-  // Estimación de la salida
+  // Estimación de salida para swap
   useEffect(() => {
-    if (amountToSwap && reserveA && reserveB && priceA && priceB) {
-      const inputAmountInWei = parseEther(amountToSwap); // Convierte a wei
+    if (selectedAction === 'swap' && amountToSwap && reserveA && reserveB && priceA && priceB) {
+      const inputAmountInWei = parseEther(amountToSwap);
       const reserveIn = isSwappingAtoB ? BigInt(reserveA) : BigInt(reserveB);
       const reserveOut = isSwappingAtoB ? BigInt(reserveB) : BigInt(reserveA);
 
@@ -68,31 +72,43 @@ const Home: NextPage = () => {
 
       setEstimatedOutput(parseFloat(estimatedFormatted).toFixed(3));
     }
-  }, [amountToSwap, isSwappingAtoB, reserveA, reserveB, priceA, priceB]);
+  }, [amountToSwap, isSwappingAtoB, reserveA, reserveB, priceA, priceB, selectedAction]);
 
-  // Manejar la aprobación
+  // Manejar la aprobación para swap
   const handleApprove = async () => {
     try {
-      if (isSwappingAtoB) {
+      if (selectedAction === 'swap') {
+        if (isSwappingAtoB) {
+          await approveTokenA({
+            functionName: "approve",
+            args: [simpleDEXAddress, BigInt(parseEther(amountToSwap))],
+          });
+        } else {
+          await approveTokenB({
+            functionName: "approve",
+            args: [simpleDEXAddress, BigInt(parseEther(amountToSwap))],
+          });
+        }
+      } else if (selectedAction === 'addLiquidity') {
+        // Aprobar ambos tokens para agregar liquidez
         await approveTokenA({
           functionName: "approve",
-          args: [simpleDEXAddress, BigInt(parseEther(amountToSwap))],
+          args: [simpleDEXAddress, BigInt(parseEther(liquidityAmount))],
         });
-      } else {
         await approveTokenB({
           functionName: "approve",
-          args: [simpleDEXAddress, BigInt(parseEther(amountToSwap))],
+          args: [simpleDEXAddress, BigInt(parseEther(liquidityAmount))],
         });
       }
       setIsApproved(true);
       alert("Approval successful!");
     } catch (e) {
-      console.error("Error approving the token:", e);
-      alert("There was an error approving the token.");
+      console.error("Error approving tokens:", e);
+      alert("There was an error approving the tokens.");
     }
   };
 
-  // Manejar el intercambio
+  // Manejar intercambio de tokens
   const handleSwap = async () => {
     if (!isApproved) {
       alert("You must approve the token first.");
@@ -100,147 +116,202 @@ const Home: NextPage = () => {
     }
 
     try {
-      if (isSwappingAtoB) {
-        await swapAforB({
-          functionName: "swapAforB",
-          args: [BigInt(parseEther(amountToSwap))],
+      if (selectedAction === 'swap') {
+        if (isSwappingAtoB) {
+          await swapAforB({
+            functionName: "swapAforB",
+            args: [BigInt(parseEther(amountToSwap))],
+          });
+        } else {
+          await swapBforA({
+            functionName: "swapBforA",
+            args: [BigInt(parseEther(amountToSwap))],
+          });
+        }
+        alert("Swap successful!");
+      } else if (selectedAction === 'addLiquidity') {
+        await addLiquidity({
+          functionName: "addLiquidity",
+          args: [BigInt(parseEther(liquidityAmount)), BigInt(parseEther(liquidityAmount))],
         });
-      } else {
-        await swapBforA({
-          functionName: "swapBforA",
-          args: [BigInt(parseEther(amountToSwap))],
+        alert("Liquidity added successfully!");
+      } else if (selectedAction === 'removeLiquidity') {
+        await removeLiquidity({
+          functionName: "removeLiquidity",
+          args: [BigInt(parseEther(liquidityAmount))],
         });
+        alert("Liquidity removed successfully!");
       }
-      alert("Swap successful!");
+
+      // Resetear estados
       setAmountToSwap("0");
+      setLiquidityAmount("0");
       setIsApproved(false);
     } catch (e) {
-      console.error("Error during swap:", e);
-      alert("There was an error during the swap.");
+      console.error("Error during transaction:", e);
+      alert("There was an error during the transaction.");
     }
   };
 
-  // Conversión de BigInt a number para pasar al gráfico
-  const reserveAAsNumber = reserveA ? Number(reserveA) : 0;
-  const reserveBAsNumber = reserveB ? Number(reserveB) : 0;
-  const amountToSwapAsNumber = Number(parseEther(amountToSwap));
-
   return (
-    <div className="flex items-center flex-col text-center mt-8 p-10">
-      <div className="flex gap-4 w-full justify-center">
-        <div className="flex gap-4 flex-col">
-          <div className="flex gap-4">
-            <div className="card w-48 h-auto bg-blue-200 shadow-lg rounded-lg p-4">
-              <label className="block text-left font-semibold text-lg text-gray-800">Token A Balance:</label>
-              <input
-                type="text"
-                value={reserveA ? formatUnits(BigInt(reserveA), 18) : "Loading..."}
-                readOnly
-                className="input input-bordered w-full mt-2 rounded-md p-2 text-center bg-white text-gray-700 shadow-sm"
-              />
-            </div>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl bg-white shadow-2xl rounded-2xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+          <h1 className="text-3xl font-bold text-white text-center">SimpleDEX Exchange</h1>
+        </div>
 
-            <div className="card w-48 h-auto bg-blue-200 shadow-lg rounded-lg p-4">
-              <label className="block text-left font-semibold text-lg text-gray-800">Token B Balance:</label>
-              <input
-                type="text"
-                value={reserveB ? formatUnits(BigInt(reserveB), 18) : "Loading..."}
-                readOnly
-                className="input input-bordered w-full mt-2 rounded-md p-2 text-center bg-white text-gray-700 shadow-sm"
-              />
+        {/* Navigation */}
+        <div className="flex justify-center space-x-4 p-4 bg-gray-50 border-b">
+          <button 
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              selectedAction === 'swap' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => setSelectedAction('swap')}
+          >
+            <ArrowDownUp size={20} />
+            <span>Swap</span>
+          </button>
+          <button 
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              selectedAction === 'addLiquidity' 
+                ? 'bg-green-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => setSelectedAction('addLiquidity')}
+          >
+            <PlusCircle size={20} />
+            <span>Add Liquidity</span>
+          </button>
+          <button 
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              selectedAction === 'removeLiquidity' 
+                ? 'bg-red-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => setSelectedAction('removeLiquidity')}
+          >
+            <MinusCircle size={20} />
+            <span>Remove Liquidity</span>
+          </button>
+        </div>
+
+        {/* Main Content */}
+        <div className="p-6 grid grid-cols-2 gap-6">
+          {/* Token Information */}
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold mb-2 text-blue-800">Token A Balance</h2>
+              <p className="text-2xl font-bold text-blue-600">
+                {reserveA ? formatUnits(BigInt(reserveA), 18) : "Loading..."}
+              </p>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold mb-2 text-purple-800">Token B Balance</h2>
+              <p className="text-2xl font-bold text-purple-600">
+                {reserveB ? formatUnits(BigInt(reserveB), 18) : "Loading..."}
+              </p>
             </div>
           </div>
 
-          <div className="card bg-base-100 w-100 shadow-xl h-auto overflow-y-auto">
-            <div className="card-body">
-              <h2 className="card-title">Swap Your Tokens</h2>
-              <label className="text-left">Amount to Swap</label>
-              <input
-                type="number"
-                value={amountToSwap}
-                onChange={e => setAmountToSwap(e.target.value)}
-                placeholder="Amount in tokens"
-              />
-              <div className="form-control mt-4">
-                <label className="cursor-pointer label">
-                  <span className="label-text">
-                    {isSwappingAtoB ? "Swap Token A for Token B" : "Swap Token B for Token A"}
-                  </span>
+          {/* Swap/Liquidity Action Panel */}
+          <div className="bg-gray-50 p-6 rounded-lg shadow-md">
+            {selectedAction === 'swap' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount to Swap</label>
                   <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={isSwappingAtoB}
-                    onChange={() => {
-                      if (!isApproved) {
-                        setIsSwappingAtoB(!isSwappingAtoB);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-
-              {estimatedOutput !== undefined && (
-                <div className="mt-4">
-                  <label className="block text-left">Estimated Amount:</label>
-                  <input
-                    type="text"
-                    value={estimatedOutput + " " + (isSwappingAtoB ? "Token B" : "Token A")}
-                    readOnly
-                    className="input input-bordered w-full mt-2"
+                    type="number"
+                    value={amountToSwap}
+                    onChange={e => setAmountToSwap(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-              )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    {isSwappingAtoB ? "Token A → Token B" : "Token B → Token A"}
+                  </span>
+                  <button 
+                    onClick={() => setIsSwappingAtoB(!isSwappingAtoB)}
+                    className="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition-colors"
+                  >
+                    <ArrowDownUp size={20} />
+                  </button>
+                </div>
 
-              {/* Mostrar el botón de aprobación o de intercambio */}
+                {estimatedOutput && (
+                  <div className="bg-white p-3 rounded-md border">
+                    <p className="text-sm text-gray-600">Estimated Output</p>
+                    <p className="text-lg font-bold">
+                      {estimatedOutput} {isSwappingAtoB ? "Token B" : "Token A"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(selectedAction === 'addLiquidity' || selectedAction === 'removeLiquidity') && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {selectedAction === 'addLiquidity' ? "Liquidity to Add" : "Liquidity to Remove"}
+                  </label>
+                  <input
+                    type="number"
+                    value={liquidityAmount}
+                    onChange={e => setLiquidityAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Action Button */}
+            <div className="mt-6">
               {!isApproved ? (
-                <button className="btn btn-secondary w-full mt-4" onClick={handleApprove}>
-                  Approve Token
+                <button 
+                  onClick={handleApprove}
+                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Zap size={20} />
+                  <span>Approve Tokens</span>
                 </button>
               ) : (
-                <button className="btn btn-primary w-full mt-4" onClick={handleSwap}>
-                  {isSwappingAtoB ? "Swap A for B" : "Swap B for A"}
+                <button 
+                  onClick={handleSwap}
+                  className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Zap size={20} />
+                  <span>
+                    {selectedAction === 'swap' 
+                      ? (isSwappingAtoB ? "Swap A for B" : "Swap B for A")
+                      : selectedAction === 'addLiquidity'
+                      ? "Add Liquidity"
+                      : "Remove Liquidity"}
+                  </span>
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="flex gap-4 flex-col">
-          <div className="flex gap-4">
-            <div className="card w-48 h-auto bg-blue-200 shadow-lg rounded-lg p-4">
-              <label className="block text-left font-semibold text-lg text-gray-800">Token A Price:</label>
-              <input
-                type="text"
-                value={priceA ? formatUnits(BigInt(priceA), 18) : "Loading..."}
-                readOnly
-                className="input input-bordered w-full mt-2 rounded-md p-2 text-center bg-white text-gray-700 shadow-sm"
-              />
-            </div>
-
-            <div className="card w-48 h-auto bg-blue-200 shadow-lg rounded-lg p-4">
-              <label className="block text-left font-semibold text-lg text-gray-800">Token B Price:</label>
-              <input
-                type="text"
-                value={priceB ? formatUnits(BigInt(priceB), 18) : "Loading..."}
-                readOnly
-                className="input input-bordered w-full mt-2 rounded-md p-2 text-center bg-white text-gray-700 shadow-sm"
-              />
-            </div>
+        {/* Price Information */}
+        <div className="bg-gray-100 p-4 grid grid-cols-2 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-md text-center">
+            <h3 className="text-sm text-gray-600 mb-2">Token A Price</h3>
+            <p className="text-xl font-bold text-blue-600">
+              {priceA ? formatUnits(BigInt(priceA), 18) : "Loading..."}
+            </p>
           </div>
-          <div className="card bg-base-100 w-[400px] shadow-xl min-h-[400px] overflow-y-auto">
-            <div className="card-body">
-              <h2 className="card-title">Curve Chart</h2>
-              <div className="h-full">
-                <Curve
-                  reserveA={reserveAAsNumber}
-                  reserveB={reserveBAsNumber}
-                  amountToSwapA={isSwappingAtoB ? amountToSwapAsNumber : 0}
-                  amountToSwapB={isSwappingAtoB ? 0 : amountToSwapAsNumber}
-                  width={300}
-                  height={300}
-                />
-              </div>
-            </div>
+          <div className="bg-white p-4 rounded-lg shadow-md text-center">
+            <h3 className="text-sm text-gray-600 mb-2">Token B Price</h3>
+            <p className="text-xl font-bold text-purple-600">
+              {priceB ? formatUnits(BigInt(priceB), 18) : "Loading..."}
+            </p>
           </div>
         </div>
       </div>
